@@ -12,8 +12,7 @@ prefs.hardware['audioLib'] = ['pygame']
 # Use pygame's default device selection which is more stable
 try:
     import pygame.mixer
-    # Initialize pygame mixer with default settings to lock in the device early
-    pygame.mixer.init()
+    pygame.mixer.init() # Initialize pygame mixer with default settings to lock in the device early
 except Exception as e:
     print(f"Note: Could not pre-initialize pygame mixer - {e}")
 from psychopy import sound, monitors, logging, visual, data, core
@@ -86,10 +85,12 @@ drawingAsGrating = True;  debugDrawBothAsGratingAndAsBlobs = False
 antialiasGrating = False; #True makes the mask not work perfectly at the center, so have to draw fixation over the center
 gratingTexPix=1024 #If go to 128, cue doesn't overlap well with grating #numpy textures must be a power of 2. So, if numColorsRoundTheRing not divide without remainder into textPix, there will be some rounding so patches will not all be same size
 
-numRings=3
-radii=np.array([2.5,7,15]) #[2.5,9.5,15]   #Need to encode as array for those experiments where more than one ring presented 
+numRings=2
+# For intersecting (Venn diagram) layout: two equal-radius circles offset so fixation sits in the intersection
+vennRadius = 7  # degrees - radius for both rings
+radii=np.array([vennRadius, vennRadius, vennRadius]) #equal radii so both circles are the same size (Venn diagram style)
 
-respRadius=radii[0] #deg
+respRadius= 2.5 #deg - click response tolerance radius
 refreshRate= 100.0   #160 #set to the framerate of the monitor
 useClock = True #as opposed to using frame count, which assumes no frames are ever missed
 fullscr=0 #Seedms like on the "Chris" computer, Window opening crashes if fullscr==1
@@ -549,7 +550,7 @@ def constructRingAsGratingSimplified(radii,numObjects,patchAngle,colors,stimColo
             cueTexEachRing[ringI][round(secondFlankStart):round(secondFlankEnd), :] =  bgColor[0]  # [.8,-1,.5] #opposite of bgColor (usually black), thus usually white 
 
     angRes = 100 #100 is default. I have not seen any effect. This is currently not printed to log file.
-    ringRadialMask=[[0,0,0,1,1],[0,0,0,0,0,0,1,1],[0,0,0,0,0,0,0,0,0,0,1,1]]  #Masks to turn each grating into an annulus (a ring)
+    ringRadialMask=[[0,0,0,1,1],[0,0,0,0,0,0,1,1],[0,0,0,0,0,0,0,0,0,0,1,1]]  #Masks to turn each grating into an annulus (a ring). Third entry kept for indexing safety even though only 2 rings used.
 
     for i in range(numRings): #Create the actual ring graphics objects, both the objects ring and the cue rings
 
@@ -734,24 +735,50 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
 
     if drawingAsGrating or debugDrawBothAsGratingAndAsBlobs:
         angleObject0Deg = alignAngleWithBlobs(angleObject0Rad)
-        ringRadial[numRing].setOri(angleObject0Deg)   
+        ringRadial[numRing].setOri(angleObject0Deg)
+        ringRadial[numRing].setPos(offsetXYeachRing[numRing])  # position ring at its Venn-diagram centre
         ringRadial[numRing].setContrast( contrast )
+        # Use scissor clipping so each ring only draws on its own side of the screen.
+        # This avoids one ring painting over the other in the overlap region, with no opacity or blending changes.
+        # Ring 0 is on the left (offsetX < 0), ring 1 is on the right (offsetX > 0).
+        # Scissor coords are in pixels from bottom-left: (x, y, width, height).
+        halfWidthPix = widthPix // 2
+        myWin.scissorTest = True
+        if offsetXYeachRing[numRing][0] <= 0:  # left ring: clip to left half
+            myWin.scissor = (0, 0, halfWidthPix, heightPix)
+        else:  # right ring: clip to right half
+            myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
         ringRadial[numRing].draw()
+        myWin.scissorTest = False  # restore - no clipping for fixation etc.
         if  (blobToCueEachRing[numRing] != -999) and n< cueFrames:  #-999 means there's no? target in that ring
             #if blobToCue!=currentlyCuedBlob: #if blobToCue now is different from what was cued the first time the rings were constructed, have to make new rings
                 #even though this will result in skipping frames
                 cueRing[numRing].setOri(angleObject0Deg)
+                cueRing[numRing].setPos(offsetXYeachRing[numRing])  # position cue ring at same Venn-diagram centre
                 #gradually make the cue become transparent until it disappears completely (opacity=0), revealing the object
                 opacity = 1 - n*1.0/cueFrames  #linear ramp from 1 to 0
                 #The above makes it transparent too quickly, so pass through a nonlinearity
                 # curve that decelerates towards 1,1, so will stay white for longer
                 opacity = sqrt( cos( (opacity-1)*pi/2 ) ) # https://www.desmos.com/calculator/jsk2ppb1yu
-                cueRing[numRing].setOpacity(opacity)  
+                cueRing[numRing].setOpacity(opacity)
+                myWin.scissorTest = True
+                if offsetXYeachRing[numRing][0] <= 0:
+                    myWin.scissor = (0, 0, halfWidthPix, heightPix)
+                else:
+                    myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
                 cueRing[numRing].draw()
+                myWin.scissorTest = False
         #draw tracking cue on top with separate object? Because might take longer than frame to draw the entire texture
         #so create a second grating which is all transparent except for one white sector. Then, rotate sector to be on top of target
     if (not drawingAsGrating) or debugDrawBothAsGratingAndAsBlobs: #drawing objects individually, not as grating. This just means can't keep up with refresh rate if more than 4 objects or so
-        #Calculate position of each object for this frame and draw them                
+        #Calculate position of each object for this frame and draw them
+        # Use scissor clipping (same as grating path) so blobs from each ring don't mask each other in the overlap region.
+        halfWidthPix = widthPix // 2
+        myWin.scissorTest = True
+        if offsetXYeachRing[numRing][0] <= 0:  # left ring
+            myWin.scissor = (0, 0, halfWidthPix, heightPix)
+        else:  # right ring
+            myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
         for nobject in range(numObjects):
             angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects*nobject
             x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
@@ -770,6 +797,7 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
             if labelBlobs: #for debugging purposes such as to check alignment with grating version
                 blobLabels[nobject].setPos([x,y])
                 blobLabels[nobject].draw()
+        myWin.scissorTest = False
 
   #Drawing fixation after stimuli rather than before because gratings don't seem to mask properly, leaving them showing at center 
   if n%2:
@@ -834,9 +862,16 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 x = x+ offsetXYeachRing[optionSet][0]
                 y = y+ offsetXYeachRing[optionSet][1]            
                 if not drawingAsGrating and not debugDrawBothAsGratingAndAsBlobs:
+                    halfWidthPix = widthPix // 2
+                    myWin.scissorTest = True
+                    if offsetXYeachRing[optionSet][0] <= 0:
+                        myWin.scissor = (0, 0, halfWidthPix, heightPix)
+                    else:
+                        myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
                     blob.setColor(  colors_all[0], log=autoLogging )
                     blob.setPos([x,y])
                     blob.draw()
+                    myWin.scissorTest = False
 
                 #draw circles around selected items. Colors are drawn in order they're in in optionsIdxs
                 opts=optionIdexs;
@@ -846,7 +881,15 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                        optionChosenCircle.draw()                
           #end loop for individual blobs 
           if drawingAsGrating: #then blobs are actually rectangles, to mimic grating wedges
+            ringRadial[optionSet].setPos(offsetXYeachRing[optionSet])  # maintain Venn-diagram position on response screen
+            halfWidthPix = widthPix // 2
+            myWin.scissorTest = True
+            if offsetXYeachRing[optionSet][0] <= 0:
+                myWin.scissor = (0, 0, halfWidthPix, heightPix)
+            else:
+                myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
             ringRadial[optionSet].draw()
+            myWin.scissorTest = False
         #end loop through rings
 
         #Draw visual response cue, usually ring to indicate which ring is queried
@@ -1081,7 +1124,7 @@ while trialNum < trials.nTotal and expStop==False:
         ringRadial,cueRing,currentlyCuedBlob = constructRingAsGratingSimplified(
                                 radiiGratings,thisTrial['numObjectsInRing'],gratingObjAngle,colors_all,
                                 stimColorIdxsOrder,gratingTexPix,blobsToPreCue)
-        preDrawStimToGreasePipeline.extend([ringRadial[0],ringRadial[1],ringRadial[2]])
+        preDrawStimToGreasePipeline.extend([ringRadial[i] for i in range(numRings)])
     core.wait(.1)
 
     if not quickMeasurement:
@@ -1096,7 +1139,11 @@ while trialNum < trials.nTotal and expStop==False:
     t0=trialClock.getTime(); #t=trialClock.getTime()-t0         
     #the loop for this trial's stimulus!
     for n in range(trialDurFrames): 
-        offsetXYeachRing=[ [0,0],[0,0],[0,0] ]
+        # Venn diagram layout: offset the two rings horizontally so they intersect at the fixation point (origin).
+        # Each circle has radius vennRadius. We offset by vennRadius*0.6 so the overlap is substantial
+        # and the fixation (at origin) sits inside the overlapping region of both circles.
+        vennOffset = radii[0] * 0.6  # horizontal offset for each circle centre from fixation
+        offsetXYeachRing=[ [-vennOffset, 0], [vennOffset, 0], [0, 0] ]  # ring0 left, ring1 right, ring2 unused
         if currentSpeed < speedThisTrial:
             currentSpeed = currentSpeed + speedRampStep
         if basicShape == 'diamond':  #scale up speed so that it achieves that speed in rps even though it has farther to travel

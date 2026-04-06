@@ -6,6 +6,8 @@
 ### For setup of new experiment variant, variables to consider: 
 ### trialDurMin, trackVariableIntervMax
 ##############
+from psychopy import prefs
+prefs.hardware['audioLib'] = ['pygame']
 from psychopy import sound, monitors, logging, visual, data, core
 import psychopy.gui, psychopy.event, psychopy.info
 import numpy as np, pandas as pd 
