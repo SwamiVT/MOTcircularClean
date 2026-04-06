@@ -6,6 +6,16 @@
 ### For setup of new experiment variant, variables to consider: 
 ### trialDurMin, trackVariableIntervMax
 ##############
+from psychopy import prefs
+prefs.hardware['audioLib'] = ['pygame']
+# Set audio device to avoid dynamic device selection crashes
+# Use pygame's default device selection which is more stable
+try:
+    import pygame.mixer
+    # Initialize pygame mixer with default settings to lock in the device early
+    pygame.mixer.init()
+except Exception as e:
+    print(f"Note: Could not pre-initialize pygame mixer - {e}")
 from psychopy import sound, monitors, logging, visual, data, core
 import psychopy.gui, psychopy.event, psychopy.info
 from psychopy import plugins
@@ -1035,7 +1045,7 @@ while trialNum < trials.nTotal and expStop==False:
             #and calibrate. It tries to draw on the screen to do the calibration.
         pylink.closeGraphics()  #Don't allow eyelink to still be able to draw because as of Jan2024, we can't get it working to have both Psychopy and Eyelink routines to draw to the same graphics environment
         
-    fixatnPeriodFrames = int(   (np.random.rand(1)/2.+0.8)   *refreshRate)  #random interval between x and x+800ms
+    fixatnPeriodFrames = int(((np.random.rand()/2.0) + 0.8) *refreshRate)#random interval between x and x+800ms
     for i in range(fixatnPeriodFrames):
         if i%2:
             fixation.draw()
