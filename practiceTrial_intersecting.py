@@ -12,7 +12,8 @@ prefs.hardware['audioLib'] = ['pygame']
 # Use pygame's default device selection which is more stable
 try:
     import pygame.mixer
-    pygame.mixer.init() # Initialize pygame mixer with default settings to lock in the device early
+    # Initialize pygame mixer with default settings to lock in the device early
+    pygame.mixer.init()
 except Exception as e:
     print(f"Note: Could not pre-initialize pygame mixer - {e}")
 from psychopy import sound, monitors, logging, visual, data, core
@@ -81,7 +82,7 @@ respTypes=['order']; respType=respTypes[0]
 rng_seed = int(time.time())
 np.random.seed(seed=rng_seed); random.seed(rng_seed)
 
-drawingAsGrating = True;  debugDrawBothAsGratingAndAsBlobs = False
+drawingAsGrating = False;  debugDrawBothAsGratingAndAsBlobs = False
 antialiasGrating = False; #True makes the mask not work perfectly at the center, so have to draw fixation over the center
 gratingTexPix=1024 #If go to 128, cue doesn't overlap well with grating #numpy textures must be a power of 2. So, if numColorsRoundTheRing not divide without remainder into textPix, there will be some rounding so patches will not all be same size
 
@@ -736,68 +737,48 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
     if drawingAsGrating or debugDrawBothAsGratingAndAsBlobs:
         angleObject0Deg = alignAngleWithBlobs(angleObject0Rad)
         ringRadial[numRing].setOri(angleObject0Deg)
-        ringRadial[numRing].setPos(offsetXYeachRing[numRing])  # position ring at its Venn-diagram centre
+        ringRadial[numRing].setPos(offsetXYeachRing[numRing])
         ringRadial[numRing].setContrast( contrast )
-        # Use scissor clipping so each ring only draws on its own side of the screen.
-        # This avoids one ring painting over the other in the overlap region, with no opacity or blending changes.
-        # Ring 0 is on the left (offsetX < 0), ring 1 is on the right (offsetX > 0).
-        # Scissor coords are in pixels from bottom-left: (x, y, width, height).
-        halfWidthPix = widthPix // 2
-        myWin.scissorTest = True
-        if offsetXYeachRing[numRing][0] <= 0:  # left ring: clip to left half
-            myWin.scissor = (0, 0, halfWidthPix, heightPix)
-        else:  # right ring: clip to right half
-            myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
-        ringRadial[numRing].draw()
-        myWin.scissorTest = False  # restore - no clipping for fixation etc.
-        if  (blobToCueEachRing[numRing] != -999) and n< cueFrames:  #-999 means there's no? target in that ring
-            #if blobToCue!=currentlyCuedBlob: #if blobToCue now is different from what was cued the first time the rings were constructed, have to make new rings
-                #even though this will result in skipping frames
+        if  (blobToCueEachRing[numRing] != -999) and n< cueFrames:
                 cueRing[numRing].setOri(angleObject0Deg)
-                cueRing[numRing].setPos(offsetXYeachRing[numRing])  # position cue ring at same Venn-diagram centre
-                #gradually make the cue become transparent until it disappears completely (opacity=0), revealing the object
-                opacity = 1 - n*1.0/cueFrames  #linear ramp from 1 to 0
-                #The above makes it transparent too quickly, so pass through a nonlinearity
-                # curve that decelerates towards 1,1, so will stay white for longer
-                opacity = sqrt( cos( (opacity-1)*pi/2 ) ) # https://www.desmos.com/calculator/jsk2ppb1yu
+                cueRing[numRing].setPos(offsetXYeachRing[numRing])
+                opacity = 1 - n*1.0/cueFrames
+                opacity = sqrt( cos( (opacity-1)*pi/2 ) )
                 cueRing[numRing].setOpacity(opacity)
-                myWin.scissorTest = True
-                if offsetXYeachRing[numRing][0] <= 0:
-                    myWin.scissor = (0, 0, halfWidthPix, heightPix)
-                else:
-                    myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
-                cueRing[numRing].draw()
-                myWin.scissorTest = False
-        #draw tracking cue on top with separate object? Because might take longer than frame to draw the entire texture
-        #so create a second grating which is all transparent except for one white sector. Then, rotate sector to be on top of target
-    if (not drawingAsGrating) or debugDrawBothAsGratingAndAsBlobs: #drawing objects individually, not as grating. This just means can't keep up with refresh rate if more than 4 objects or so
-        #Calculate position of each object for this frame and draw them
-        # Use scissor clipping (same as grating path) so blobs from each ring don't mask each other in the overlap region.
-        halfWidthPix = widthPix // 2
-        myWin.scissorTest = True
-        if offsetXYeachRing[numRing][0] <= 0:  # left ring
-            myWin.scissor = (0, 0, halfWidthPix, heightPix)
-        else:  # right ring
-            myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
-        for nobject in range(numObjects):
-            angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects*nobject
-            x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
-            x += offsetXYeachRing[numRing][0]
-            y += offsetXYeachRing[numRing][1]
-            if nobject==blobToCueEachRing[numRing] and n< cueFrames: #cue in white
-                weightToTrueColor = n*1.0/cueFrames #compute weighted average to ramp from white to correct color
-                blobColor = (1.0-weightToTrueColor)*cueColor +  weightToTrueColor*colors_all[nobject]
-                blobColor *= contrast #also might want to change contrast, if everybody's contrast changing in contrast ramp
-                #print('weightToTrueColor=',weightToTrueColor,' n=',n, '  blobColor=',blobColor)
-            else: blobColor = colors_all[0]*contrast
-            #referenceCircle.setPos(offsetXYeachRing[numRing]);  referenceCircle.draw()
-            blob.setColor( blobColor, log=autoLogging )
-            blob.setPos([x,y])
-            blob.draw()
-            if labelBlobs: #for debugging purposes such as to check alignment with grating version
-                blobLabels[nobject].setPos([x,y])
-                blobLabels[nobject].draw()
-        myWin.scissorTest = False
+
+  # Draw both rings with alternating order each frame so neither appears persistently in front of the other.
+  # On even frames ring 0 is drawn last (on top); on odd frames ring 1 is on top.
+  # At normal refresh rates this flicker is imperceptible and both rings appear equally present.
+  if drawingAsGrating or debugDrawBothAsGratingAndAsBlobs:
+    if n % 2 == 0:
+        drawOrder = [0, 1]
+    else:
+        drawOrder = [1, 0]
+    for di in drawOrder:
+        ringRadial[di].draw()
+        if (blobToCueEachRing[di] != -999) and n < cueFrames:
+            cueRing[di].draw()
+  if (not drawingAsGrating) or debugDrawBothAsGratingAndAsBlobs: #drawing objects individually, not as grating. This just means can't keep up with refresh rate if more than 4 objects or so
+    #Calculate position of each object for this frame and draw them
+    for numRing in range(numRings):
+      angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing]
+      for nobject in range(numObjects):
+        angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects*nobject
+        x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
+        x += offsetXYeachRing[numRing][0]
+        y += offsetXYeachRing[numRing][1]
+        if nobject==blobToCueEachRing[numRing] and n< cueFrames: #cue in white
+            weightToTrueColor = n*1.0/cueFrames #compute weighted average to ramp from white to correct color
+            blobColor = (1.0-weightToTrueColor)*cueColor +  weightToTrueColor*colors_all[nobject]
+            blobColor *= contrast #also might want to change contrast, if everybody's contrast changing in contrast ramp
+        else: blobColor = colors_all[0]*contrast
+        #referenceCircle.setPos(offsetXYeachRing[numRing]);  referenceCircle.draw()
+        blob.setColor( blobColor, log=autoLogging )
+        blob.setPos([x,y])
+        blob.draw()
+        if labelBlobs: #for debugging purposes such as to check alignment with grating version
+            blobLabels[nobject].setPos([x,y])
+            blobLabels[nobject].draw()
 
   #Drawing fixation after stimuli rather than before because gratings don't seem to mask properly, leaving them showing at center 
   if n%2:
@@ -862,16 +843,9 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 x = x+ offsetXYeachRing[optionSet][0]
                 y = y+ offsetXYeachRing[optionSet][1]            
                 if not drawingAsGrating and not debugDrawBothAsGratingAndAsBlobs:
-                    halfWidthPix = widthPix // 2
-                    myWin.scissorTest = True
-                    if offsetXYeachRing[optionSet][0] <= 0:
-                        myWin.scissor = (0, 0, halfWidthPix, heightPix)
-                    else:
-                        myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
                     blob.setColor(  colors_all[0], log=autoLogging )
                     blob.setPos([x,y])
                     blob.draw()
-                    myWin.scissorTest = False
 
                 #draw circles around selected items. Colors are drawn in order they're in in optionsIdxs
                 opts=optionIdexs;
@@ -881,15 +855,8 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                        optionChosenCircle.draw()                
           #end loop for individual blobs 
           if drawingAsGrating: #then blobs are actually rectangles, to mimic grating wedges
-            ringRadial[optionSet].setPos(offsetXYeachRing[optionSet])  # maintain Venn-diagram position on response screen
-            halfWidthPix = widthPix // 2
-            myWin.scissorTest = True
-            if offsetXYeachRing[optionSet][0] <= 0:
-                myWin.scissor = (0, 0, halfWidthPix, heightPix)
-            else:
-                myWin.scissor = (halfWidthPix, 0, halfWidthPix, heightPix)
+            ringRadial[optionSet].setPos(offsetXYeachRing[optionSet])
             ringRadial[optionSet].draw()
-            myWin.scissorTest = False
         #end loop through rings
 
         #Draw visual response cue, usually ring to indicate which ring is queried
