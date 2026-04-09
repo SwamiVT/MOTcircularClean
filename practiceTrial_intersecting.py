@@ -850,7 +850,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 #draw circles around selected items. Colors are drawn in order they're in in optionsIdxs
                 opts=optionIdexs;
                 if respondedEachToken[optionSet][ncheck]:  #draw circle around this one to indicate this option has been chosen
-                       optionChosenCircle.setColor(array([1,-1,1]), log=autoLogging)
+                       optionChosenCircle.setColor(np.array([1,-1,1]), log=autoLogging)
                        optionChosenCircle.setPos([x,y])
                        optionChosenCircle.draw()                
           #end loop for individual blobs 
@@ -1114,6 +1114,7 @@ while trialNum < trials.nTotal and expStop==False:
         if currentSpeed < speedThisTrial:
             currentSpeed = currentSpeed + speedRampStep
         if basicShape == 'diamond':  #scale up speed so that it achieves that speed in rps even though it has farther to travel
+            numRing = 0  # Use first ring for diamond shape calculation
             perimeter = radii[numRing]*4.0
             circum = 2*pi*radii[numRing]
             finalspeed = speedThisTrial * perimeter/circum #Have to go this much faster to get all the way around in same amount of time as for circle

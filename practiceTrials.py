@@ -8,6 +8,7 @@
 ##############
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pygame']
+prefs.hardware['audioLatencyMode'] = 0
 # Set audio device to avoid dynamic device selection crashes
 # Use pygame's default device selection which is more stable
 try:
@@ -57,7 +58,7 @@ except Exception as e:
 
 eyetracking = False; eyetrackFileGetFromEyelinkMachine = False #very timeconsuming to get the file from the eyetracking machine over the ethernet cable, 
 #sometimes better to get the EDF file from the Eyelink machine by hand by rebooting into Windows and going to 
-useSound=True
+useSound=False
 quitFinder = False 
 if quitFinder and ('Darwin' in platform.system()): #turn Finder off. Only know the command for MacOS (Darwin)
     applescript="\'tell application \"Finder\" to quit\'" #quit Finder.
@@ -841,7 +842,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 #draw circles around selected items. Colors are drawn in order they're in in optionsIdxs
                 opts=optionIdexs;
                 if respondedEachToken[optionSet][ncheck]:  #draw circle around this one to indicate this option has been chosen
-                       optionChosenCircle.setColor(array([1,-1,1]), log=autoLogging)
+                       optionChosenCircle.setColor(np.array([1,-1,1]), log=autoLogging)
                        optionChosenCircle.setPos([x,y])
                        optionChosenCircle.draw()                
           #end loop for individual blobs 
@@ -1151,10 +1152,10 @@ while trialNum < trials.nTotal and expStop==False:
                     flankingAlso=list()
                     for idx in idxsInterframeLong: #also print timing of one before and one after long frame
                         if idx-1>=0:  flankingAlso.append(idx-1)
-                        else: flankingAlso.append(np.NaN)
+                        else: flankingAlso.append(np.nan)
                         flankingAlso.append(idx)
                         if idx+1<len(interframeIntervs):  flankingAlso.append(idx+1)
-                        else: flankingAlso.append(np.NaN)
+                        else: flankingAlso.append(np.nan)
                     #print >>logF, 'flankers also='+str( np.around( interframeIntervs[flankingAlso], 1) )
             #end timing check
     myMouse.setVisible(True)
