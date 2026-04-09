@@ -844,7 +844,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 #draw circles around selected items. Colors are drawn in order they're in in optionsIdxs
                 opts=optionIdexs;
                 if respondedEachToken[optionSet][ncheck]:  #draw circle around this one to indicate this option has been chosen
-                       optionChosenCircle.setColor(array([1,-1,1]), log=autoLogging)
+                       optionChosenCircle.setColor(np.array([1,-1,1]), log=autoLogging)
                        optionChosenCircle.setPos([x,y])
                        optionChosenCircle.draw()                
           #end loop for individual blobs 
