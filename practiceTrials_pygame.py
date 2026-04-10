@@ -345,7 +345,7 @@ fixationPoint = visual.GratingStim(myWin,colorSpace='rgb',color=(1,1,1),mask='ci
 NextText = visual.TextStim(myWin,pos=(0, 0),colorSpace='rgb',color = (1,1,1),anchorHoriz='center', anchorVert='center', units='norm',autoLog=autoLogging)
 NextRemindPctDoneText = visual.TextStim(myWin,pos=(-.1, -.4),colorSpace='rgb',color= (1,1,1),anchorHoriz='center', anchorVert='center', units='norm',autoLog=autoLogging)
 NextRemindCountText = visual.TextStim(myWin,pos=(.1, -.5),colorSpace='rgb',color = (1,1,1),anchorHoriz='center', anchorVert='center', units='norm',autoLog=autoLogging)
-speedText = visual.TextStim(myWin,pos=(-0.5, 0.5),colorSpace='rgb',color = (1,1,1),anchorHoriz='center', anchorVert='center', units='norm',text="0.00 deg/s",autoLog=False)
+speedText = visual.TextStim(myWin,pos=(-0.5, 0.5),colorSpace='rgb',color = (1,1,1),anchorHoriz='center', anchorVert='center', units='norm',text="0.00rps",autoLog=False)
 if useSound:
     ringQuerySoundFileNames = [ 'innerring.wav', 'middlering.wav', 'outerring.wav' ]
     soundDir = 'sounds'
@@ -683,9 +683,8 @@ def xyThisFrameThisAngle(basicShape, radiiThisTrial, numRing, angle, thisFrameN,
     
     return x,y
 
-def angleChangeThisFrame(linearSpeed, initialDirectionEachRing, numRing, thisFrameN, lastFrameN):
-    rps = linearSpeed / (2 * pi * radii[numRing])
-    angleMoveRad = initialDirectionEachRing[numRing] * rps * 2 * pi * (thisFrameN - lastFrameN) / refreshRate
+def angleChangeThisFrame(speed,initialDirectionEachRing, numRing, thisFrameN, lastFrameN):
+    angleMoveRad = initialDirectionEachRing[numRing] * speed*2*pi*(thisFrameN-lastFrameN) / refreshRate
     return angleMoveRad
 
 def alignAngleWithBlobs(angleOrigRad):
@@ -782,7 +781,7 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
   fixationPoint.draw()
   
   if quickMeasurement:  #be careful - drawing text in Psychopy is time-consuming, so don't do this in real testing / high frame rate
-    speedText.setText( str(round(currentSpeed,1)) + " deg/s" )
+    speedText.setText( str(round(currentSpeed,1)) )
     speedText.draw()
   if blindspotFill:
       blindspotStim.draw()
@@ -1102,8 +1101,10 @@ while trialNum < trials.nTotal and expStop==False:
         offsetXYeachRing=[ [0,0],[0,0],[0,0] ]
         if currentSpeed < speedThisTrial:
             currentSpeed = currentSpeed + speedRampStep
-        if basicShape == 'diamond':
-            pass  # No rps correction needed: speed is already constant linear (deg/s)
+        if basicShape == 'diamond':  #scale up speed so that it achieves that speed in rps even though it has farther to travel
+            perimeter = radii[numRing]*4.0
+            circum = 2*pi*radii[numRing]
+            finalspeed = speedThisTrial * perimeter/circum #Have to go this much faster to get all the way around in same amount of time as for circle
         #print('currentSpeed=',currentSpeed)
         (angleIni,currAngle,isReversed,reversalNumEachRing) = \
             oneFrameOfStim(thisTrial,currentSpeed,n,stimClock,useClock,offsetXYeachRing,initialDirectionEachRing,currAngle,blobsToPreCue,isReversed,reversalNumEachRing,cueFrames) #da big function
@@ -1375,7 +1376,7 @@ if plotResults:
     # set up plot
     plt.subplot(111)
     plt.ylabel("Proportion correct")
-    plt.xlabel('speed (deg/s)')
+    plt.xlabel('speed (rps)')
     speedEachTrial = df['speedThisTrial']
 
     paramsEachCond = list()

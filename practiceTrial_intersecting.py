@@ -6,17 +6,12 @@
 ### For setup of new experiment variant, variables to consider: 
 ### trialDurMin, trackVariableIntervMax
 ##############
-from psychopy import prefs
-prefs.hardware['audioLib'] = ['pygame']
-# Set audio device to avoid dynamic device selection crashes
-# Use pygame's default device selection which is more stable
 try:
     import pygame.mixer
-    # Initialize pygame mixer with default settings to lock in the device early
     pygame.mixer.init()
 except Exception as e:
     print(f"Note: Could not pre-initialize pygame mixer - {e}")
-from psychopy import sound, monitors, logging, visual, data, core
+from psychopy import monitors, logging, visual, data, core
 import psychopy.gui, psychopy.event, psychopy.info
 from psychopy import plugins
 plugins.activatePlugins()
@@ -357,7 +352,12 @@ if useSound:
     ringQuerySoundFileNames = [ 'innerring.wav', 'middlering.wav', 'outerring.wav' ]
     soundDir = 'sounds'
     try:
-        lowSound = sound.Sound('E',octave=4, stereo = False, sampleRate = 44100, secs=.8, volume=1.0, autoLog=autoLogging)
+        _sr = 44100; _freq = 329.63; _secs = 0.8
+        _t = np.linspace(0, _secs, int(_sr * _secs), endpoint=False)
+        _wave = (np.sin(2 * np.pi * _freq * _t) * 32767).astype(np.int16)
+        _stereo = np.column_stack((_wave, _wave)) 
+        lowSound = pygame.mixer.Sound(buffer=_stereo.tobytes())
+        lowSound.set_volume(1.0)
     except Exception as e:
         print(f"Warning: Could not create lowSound - {e}")
         lowSound = None
@@ -367,14 +367,15 @@ if useSound:
         soundFileName = ringQuerySoundFileNames[i]
         soundFileNameAndPath = os.path.join(soundDir, ringQuerySoundFileNames[ i ])
         try:
-            respPromptSounds[i] = sound.Sound(soundFileNameAndPath, secs=.2, autoLog=autoLogging)
+            respPromptSounds[i] = pygame.mixer.Sound(soundFileNameAndPath)
         except Exception as e:
             print(f"Warning: Could not create respPromptSounds[{i}] - {e}")
             respPromptSounds[i] = None
 
     corrSoundPathAndFile= os.path.join(soundDir, 'Ding44100Mono.wav')
     try:
-        corrSound = sound.Sound(corrSoundPathAndFile, volume=.3, autoLog=autoLogging)
+        corrSound = pygame.mixer.Sound(corrSoundPathAndFile)
+        corrSound.set_volume(0.3)
     except Exception as e:
         print(f"Warning: Could not create corrSound - {e}")
         corrSound = None
@@ -1166,10 +1167,10 @@ while trialNum < trials.nTotal and expStop==False:
                     flankingAlso=list()
                     for idx in idxsInterframeLong: #also print timing of one before and one after long frame
                         if idx-1>=0:  flankingAlso.append(idx-1)
-                        else: flankingAlso.append(np.NaN)
+                        else: flankingAlso.append(np.nan)
                         flankingAlso.append(idx)
                         if idx+1<len(interframeIntervs):  flankingAlso.append(idx+1)
-                        else: flankingAlso.append(np.NaN)
+                        else: flankingAlso.append(np.nan)
                     #print >>logF, 'flankers also='+str( np.around( interframeIntervs[flankingAlso], 1) )
             #end timing check
     myMouse.setVisible(True)
@@ -1188,7 +1189,7 @@ while trialNum < trials.nTotal and expStop==False:
     if useSound:
         respPromptSoundPathAndFile= os.path.join(soundDir, ringQuerySoundFileNames[ respPromptSoundFileNum ])
         try:
-            respPromptSound = sound.Sound(respPromptSoundPathAndFile, secs=.2)
+            respPromptSound = pygame.mixer.Sound(respPromptSoundPathAndFile)
         except Exception as e:
             print(f"Warning: Could not create respPromptSound - {e}")
             respPromptSound = None
