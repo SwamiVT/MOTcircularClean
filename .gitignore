@@ -11,3 +11,4 @@ exportedImages/fr*
 .Rproj.user
 experiment_specific/transient_attention/sounds/
 .vscode/
+.vscode/settings.json
