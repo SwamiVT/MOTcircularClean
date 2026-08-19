@@ -140,7 +140,7 @@ def getReversalTimes():
 cueDur = cueRampUpDur+cueRampDownDur+trackingExtraTime  #giving the person time to attend to the cue (secs)
 rampUpFrames = refreshRate*cueRampUpDur;   rampDownFrames = refreshRate*cueRampDownDur;
 cueFrames = int( refreshRate*cueDur )
-ballStdDev = 1.8 #* 3 
+ballStdDev = 1.8 * 2
 #mouseChoiceArea = ballStdDev * 0.2 #debugAH #*0.8  # origin =1.3  #Now use a function for this,
 units='deg' #'cm'
 timeTillReversalMin = 0.5 #0.5; 
@@ -796,33 +796,33 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
     currAngleRad[numRing] = currAngleRad[numRing]+angleMoveRad*(isReversed[numRing])
     angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing]
     #Handle blob reversal if they get too close across rings
-    collisionThreshold = 1.5 * ballStdDev
-    for otherRing in visibleRings:
-        if otherRing == numRing:
-            continue
-        
-        for thisObject in range(numObjects):
-            angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects * thisObject
-            xThis, yThis = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
-            xThis += offsetXYeachRing[numRing][0]
-            yThis += offsetXYeachRing[numRing][1]
-            
-            otherAngle0 = angleIniEachRingRad[otherRing] + currAngleRad[otherRing]
-            for otherObject in range(numObjects):
-                otherAngleThisObjectRad = otherAngle0 + (2*pi)/numObjects * otherObject
-                xOther, yOther = xyThisFrameThisAngle(thisTrial['basicShape'],radii,otherRing,otherAngleThisObjectRad,n,speed)
-                xOther += offsetXYeachRing[otherRing][0]
-                yOther += offsetXYeachRing[otherRing][1]
-                
-                if np.hypot(xThis - xOther, yThis - yOther) < collisionThreshold:
-                    isReversed[numRing] *= -1
-                    isReversed[otherRing] *= -1
-                    reversalNumEachRing[numRing] += 1
-                    reversalNumEachRing[otherRing] += 1
-                    break
-            else:
-                continue
-            break
+    #collisionThreshold = 1.5 * ballStdDev
+    #for otherRing in visibleRings:
+    #    if otherRing == numRing:
+    #        continue
+    #    
+    #    for thisObject in range(numObjects):
+    #        angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects * thisObject
+    #        xThis, yThis = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
+    #        xThis += offsetXYeachRing[numRing][0]
+    #        yThis += offsetXYeachRing[numRing][1]
+    #        
+    #        otherAngle0 = angleIniEachRingRad[otherRing] + currAngleRad[otherRing]
+    #        for otherObject in range(numObjects):
+    #            otherAngleThisObjectRad = otherAngle0 + (2*pi)/numObjects * otherObject
+    #            xOther, yOther = xyThisFrameThisAngle(thisTrial['basicShape'],radii,otherRing,otherAngleThisObjectRad,n,speed)
+    #            xOther += offsetXYeachRing[otherRing][0]
+    #            yOther += offsetXYeachRing[otherRing][1]
+    #            
+    #            if np.hypot(xThis - xOther, yThis - yOther) < collisionThreshold:
+    #                isReversed[numRing] *= -1
+    #                isReversed[otherRing] *= -1
+    #                reversalNumEachRing[numRing] += 1
+    #                reversalNumEachRing[otherRing] += 1
+    #                break
+    #        else:
+    #            continue
+    #        break
     
     #Handle reversal if time for reversal
     if reversalNumEachRing[numRing] <= len(reversalTimesEachRing[numRing]): #haven't exceeded reversals assigned
