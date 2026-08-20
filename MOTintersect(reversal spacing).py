@@ -7,7 +7,7 @@
 ### trialDurMin, trackVariableIntervMax
 ##############
 from psychopy import prefs
-prefs.hardware['audioLib'] = ['pygame']
+prefs.hardware['audioLib'] = ['ptb']
 from psychopy import sound, monitors, logging, visual, data, core
 import psychopy.gui, psychopy.event, psychopy.info
 import numpy as np, pandas as pd 
@@ -140,17 +140,7 @@ def getReversalTimes():
 cueDur = cueRampUpDur+cueRampDownDur+trackingExtraTime  #giving the person time to attend to the cue (secs)
 rampUpFrames = refreshRate*cueRampUpDur;   rampDownFrames = refreshRate*cueRampDownDur;
 cueFrames = int( refreshRate*cueDur )
-ballStdDev = 1.8 #* 3 
-#Inter-ring collision avoidance via reversal: rings sit side by side and can overlap,
-#so without this, a blob from one ring could pass right through a blob from another
-#ring where the rings intersect. Instead of nudging position, this predicts (one frame
-#ahead) whether a blob from one ring is about to come within interRingBufferDistance of
-#a blob from another ring, and if so, reverses one ring's direction right then - exactly
-#like the pre-scheduled random reversals already in the code, just triggered by
-#proximity instead of by a timer. Equidistant spacing within a ring, and the pre-scheduled
-#random reversal times, are both left completely untouched by this.
-interRingBufferDistance = ballStdDev * 1.2 #distance below which an imminent cross-ring approach triggers a reversal instead
-interRingMaxReversalItersPerFrame = 6 #how many times per frame to re-check/re-decide (multiple close pairs can interact, or resolving one pair can affect another)
+ballStdDev = 1.8 * 2
 #mouseChoiceArea = ballStdDev * 0.2 #debugAH #*0.8  # origin =1.3  #Now use a function for this,
 units='deg' #'cm'
 timeTillReversalMin = 0.5 #0.5; 
@@ -778,79 +768,7 @@ def alignAngleWithBlobs(angleOrigRad):
     angleCentered = angleCentered + 90 #To align with individual blob drawing method, and hence response screen, as revealed by  debugDrawBothAsGratingAndAsBlobs = True
     return angleCentered
 
-def ringBlobPositionsThisFrame(numRing, angleObject0Rad, thisTrial, n, speed, offsetXYeachRing):
-    #Returns [(x,y,nobject), ...] for every object in this ring, given the ring's overall
-    #phase angleObject0Rad. Objects stay evenly spaced by construction (2*pi/numObjects
-    #apart), so this never disturbs within-ring spacing.
-    positions = []
-    for nobject in range(numObjects):
-        angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects*nobject
-        x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
-        x += offsetXYeachRing[numRing][0]
-        y += offsetXYeachRing[numRing][1]
-        positions.append((x,y,nobject))
-    return positions
-
-def closestCrossRingDistance(ringA, ringB, tentativeAngleObject0Rad, thisTrial, n, speed, offsetXYeachRing):
-    posA = ringBlobPositionsThisFrame(ringA, tentativeAngleObject0Rad[ringA], thisTrial, n, speed, offsetXYeachRing)
-    posB = ringBlobPositionsThisFrame(ringB, tentativeAngleObject0Rad[ringB], thisTrial, n, speed, offsetXYeachRing)
-    bestDist = None
-    for (xA,yA,nA) in posA:
-        for (xB,yB,nB) in posB:
-            d = sqrt((xA-xB)**2 + (yA-yB)**2)
-            if bestDist is None or d < bestDist:
-                bestDist = d
-    return bestDist
-
-def decideCollisionReversals(thisTrial, n, speed, visibleRings, angleIniEachRingRad, currAngleRad, isReversed, angleMoveRadEachRing, offsetXYeachRing):
-    #Rings rotate as rigid bodies (all objects in a ring share the same phase change), so
-    #this only ever flips a ring's overall direction (isReversed) - exactly the same
-    #variable the pre-scheduled random reversals flip - never anything about spacing
-    #within a ring. It predicts THIS frame's tentative position (i.e. what would happen
-    #if nothing intervened) and, if that would bring two rings' blobs closer than the
-    #buffer, picks whichever of the 4 possible direction combinations for that pair
-    #(neither/A/B/both flipped) gives the LARGEST resulting separation, and sets isReversed
-    #to that absolute combination. Using an absolute choice (not a relative toggle) avoids
-    #a subtle bug where repeatedly flipping relative to an unknown prior state can
-    #oscillate back and forth without ever resolving anything. Returns the set of ring
-    #numbers that were flipped this frame, purely for optional logging/printing.
-    if len(visibleRings) < 2:
-        return set()
-    ringsList = list(visibleRings)
-    flippedRings = set()
-
-    def tentativeAngle(numRing, overrideSign=None):
-        sign = overrideSign if overrideSign is not None else isReversed[numRing]
-        return angleIniEachRingRad[numRing] + currAngleRad[numRing] + angleMoveRadEachRing[numRing]*sign
-
-    for _iter in range(interRingMaxReversalItersPerFrame):
-        anyChange = False
-        for ii in range(len(ringsList)):
-            for jj in range(ii+1, len(ringsList)):
-                ringA, ringB = ringsList[ii], ringsList[jj]
-                baselineDist = closestCrossRingDistance(ringA, ringB, {ringA:tentativeAngle(ringA), ringB:tentativeAngle(ringB)}, thisTrial, n, speed, offsetXYeachRing)
-                if baselineDist is None or baselineDist >= interRingBufferDistance:
-                    continue #this pair is fine under current directions, leave alone
-                #Evaluate all 4 direction combinations for this pair, keep whichever
-                #gives the largest resulting separation.
-                bestCombo = None; bestDist = -1
-                for signA in (isReversed[ringA], -isReversed[ringA]):
-                    for signB in (isReversed[ringB], -isReversed[ringB]):
-                        d = closestCrossRingDistance(ringA, ringB, {ringA:tentativeAngle(ringA,signA), ringB:tentativeAngle(ringB,signB)}, thisTrial, n, speed, offsetXYeachRing)
-                        if d is not None and d > bestDist:
-                            bestDist = d; bestCombo = (signA,signB)
-                if bestCombo is not None and bestCombo != (isReversed[ringA], isReversed[ringB]):
-                    if bestCombo[0] != isReversed[ringA]:
-                        flippedRings.add(ringA)
-                    if bestCombo[1] != isReversed[ringB]:
-                        flippedRings.add(ringB)
-                    isReversed[ringA], isReversed[ringB] = bestCombo
-                    anyChange = True
-        if not anyChange:
-            break
-    return flippedRings
-
-def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,initialDirectionEachRing,currAngleRad,blobToCueEachRing,isReversed,reversalNumEachRing,cueFrames,visibleRings): 
+def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,initialDirectionEachRing,currAngleRad,blobToCueEachRing,isReversed,reversalNumEachRing,cueFrames,visibleRings,pairInCollisionCooldown): 
 #defining a function to draw each frame of stim. So can call second time for tracking task response phase
   global cueRing,ringRadial, currentlyCuedBlob #makes explicit that will be working with the global vars, not creating a local variable
   global angleIniEachRing, correctAnswers
@@ -867,20 +785,62 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
   elif rampDownFrames>0 and n > rampDownStart:
         contrast = cos(pi* (n-rampDownStart)/rampDownFrames ) /2.+.5 #starting from peak of cos, and scale into 0->1 range
   else: contrast = 1
-
-  angleMoveRadEachRing = {}
-  for numRing in visibleRings:
-    angleMoveRadEachRing[numRing] = angleChangeThisFrame(speed,initialDirectionEachRing, numRing, n, n-1)
-
-  #Before committing this frame's motion, check whether continuing in the current
-  #direction would bring two rings' blobs closer than the buffer; if so, reverse
-  #whichever ring(s) need it - same isReversed flip the scheduled random reversals use.
-  decideCollisionReversals(thisTrial, n, speed, visibleRings, angleIniEachRingRad, currAngleRad, isReversed, angleMoveRadEachRing, offsetXYeachRing)
-
+    
+  if thisTrial['numTargets'] == 1: 
+    cueRings = [thisTrial['ringToQuery']]
+  else:
+    cueRings = [r for r in range(numRings) if blobToCueEachRing[r] != -999]
+     
+  #Pass 1: update each ring's angle for this frame (based on last frame's isReversed state)
+  angleObject0RadEachRing = [0]*numRings
   for numRing in visibleRings: #range(numRings):
-    angleMoveRad = angleMoveRadEachRing[numRing]
+    angleMoveRad = angleChangeThisFrame(speed,initialDirectionEachRing, numRing, n, n-1)
     currAngleRad[numRing] = currAngleRad[numRing]+angleMoveRad*(isReversed[numRing])
-    angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing]
+    angleObject0RadEachRing[numRing] = angleIniEachRingRad[numRing] + currAngleRad[numRing] + numRing * (pi/numObjects) # the last term offsets subsequent rings blob location to maximise spatial separation 
+
+  #Pass 2: collision check across all ring pairs, done ONCE per frame (not once per ring - doing it inside
+  #the per-ring loop caused it to re-run N times per frame, re-flipping isReversed multiple times on the
+  #same detected collision and causing oscillation/getting stuck).
+  #Hysteresis (pairInCollisionCooldown) also prevents a pair from re-triggering a reversal every single
+  #frame while still within collisionThreshold - they must first separate past collisionThreshold*hysteresisFactor
+  #before they're allowed to trigger another reversal.
+  collisionThreshold = 1.5 * ballStdDev
+  hysteresisFactor = 2.0 #pair must separate to this multiple of collisionThreshold before re-triggering is allowed
+  for thisRing in visibleRings:
+      for otherRing in visibleRings:
+          if otherRing <= thisRing:
+              continue #avoid double counting, and don't want to check ring against itself
+          pairKey = (thisRing,otherRing)
+          isCurrentlyClose = False
+          for thisObject in range(numObjects):
+              angleThis = angleObject0RadEachRing[thisRing] + (2*pi)/numObjects * thisObject
+              xThis, yThis = xyThisFrameThisAngle(thisTrial['basicShape'],radii,thisRing,angleThis,n,speed)
+              xThis += offsetXYeachRing[thisRing][0]
+              yThis += offsetXYeachRing[thisRing][1]
+              for otherObject in range(numObjects):
+                  angleOther = angleObject0RadEachRing[otherRing] + (2*pi)/numObjects * otherObject
+                  xOther, yOther = xyThisFrameThisAngle(thisTrial['basicShape'],radii,otherRing,angleOther,n,speed)
+                  xOther += offsetXYeachRing[otherRing][0]
+                  yOther += offsetXYeachRing[otherRing][1]
+                  dist = np.hypot(xThis-xOther,yThis-yOther)
+                  if dist < collisionThreshold:
+                      isCurrentlyClose = True
+                      if not pairInCollisionCooldown.get(pairKey,False): #only trigger a reversal if this pair isn't already in cooldown from a recent collision
+                          isReversed[thisRing] *= -1
+                          isReversed[otherRing] *= -1
+                          reversalNumEachRing[thisRing] += 1
+                          reversalNumEachRing[otherRing] += 1
+                          pairInCollisionCooldown[pairKey] = True
+                      break
+                  elif dist < collisionThreshold*hysteresisFactor:
+                      isCurrentlyClose = True #still too close to reset cooldown, but not close enough to re-trigger
+              if isCurrentlyClose and pairInCollisionCooldown.get(pairKey,False):
+                  break
+          if not isCurrentlyClose:
+              pairInCollisionCooldown[pairKey] = False #pair has separated enough - allow future reversals again
+
+  #Pass 3: per-ring time-based reversal check, then draw
+  for numRing in visibleRings:
     #Handle reversal if time for reversal
     if reversalNumEachRing[numRing] <= len(reversalTimesEachRing[numRing]): #haven't exceeded reversals assigned
         reversalNum = int(reversalNumEachRing[numRing])
@@ -898,11 +858,11 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
             reversalNumEachRing[numRing] +=1
 
     if drawingAsGrating or debugDrawBothAsGratingAndAsBlobs:
-        angleObject0Deg = alignAngleWithBlobs(angleObject0Rad)
+        angleObject0Deg = alignAngleWithBlobs(angleObject0RadEachRing[numRing])
         ringRadial[numRing].setOri(angleObject0Deg)   
         ringRadial[numRing].setContrast( contrast )
         ringRadial[numRing].draw()
-        if  (blobToCueEachRing[numRing] != -999) and n< cueFrames:  #-999 means there's no? target in that ring
+        if (numRing in cueRings) and (blobToCueEachRing[numRing] != -999) and n< cueFrames:  #-999 means there's no? target in that ring
             #if blobToCue!=currentlyCuedBlob: #if blobToCue now is different from what was cued the first time the rings were constructed, have to make new rings
                 #even though this will result in skipping frames
                 cueRing[numRing].setOri(angleObject0Deg)
@@ -918,11 +878,11 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
     if (not drawingAsGrating) or debugDrawBothAsGratingAndAsBlobs: #drawing objects individually, not as grating. This just means can't keep up with refresh rate if more than 4 objects or so
         #Calculate position of each object for this frame and draw them               
         for nobject in range(numObjects):
-            angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects*nobject
+            angleThisObjectRad = angleObject0RadEachRing[numRing] + (2*pi)/numObjects*nobject
             x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
             x += offsetXYeachRing[numRing][0]
             y += offsetXYeachRing[numRing][1]
-            if nobject==blobToCueEachRing[numRing] and n< cueFrames: #cue in white
+            if (numRing in cueRings) and (nobject==blobToCueEachRing[numRing]) and n< cueFrames: #cue in white
                 weightToTrueColor = n*1.0/cueFrames #compute weighted average to ramp from white to correct color
                 blobColor = (1.0-weightToTrueColor)*cueColor +  weightToTrueColor*colors_all[nobject]
                 blobColor *= contrast #also might want to change contrast, if everybody's contrast changing in contrast ramp
@@ -1056,7 +1016,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
     while respcount < sum(numRespsNeeded): #collecting response  
         for optionSet in visibleRings: #range(optionSets):  #draw this group (ring) of options
           for ncheck in range( numOptionsEachSet[optionSet] ):  #draw each available to click on in this ring
-                angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi
+                angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + optionSet*(pi/numObjects) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi
                 #stretchOutwardRingsFactor = 1
                 x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,optionSet,angle,n,speed)
                 x = x+ offsetXYeachRing[optionSet][0]
@@ -1105,7 +1065,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
             allPositions = []
             for optionSet in visibleRings: #range(optionSets):
                 for ncheck in range( numOptionsEachSet[optionSet] ): 
-                    angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi #radians
+                    angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + optionSet*(pi/numObjects) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi #radians
                     x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,optionSet,angle,n,speed)
                     x = x+ offsetXYeachRing[optionSet][0]
                     y = y+ offsetXYeachRing[optionSet][1]
@@ -1264,6 +1224,9 @@ while trialNum < trials.nTotal and expStop==False:
         random.shuffle(targetRing)
         whichRingsHaveTargets = targetRing[0:thisTrial['numTargets']]
         
+        if numRings == 2 and thisTrial['numTargets'] > 1:
+            thisTrial['numTargets'] = 1
+        
         for r in whichRingsHaveTargets:
             thisTrial['whichIsTargetEachRing'][r] = rng.integers(0, thisTrial['numObjectsInRing'])
         #rings = list(range(numRings) )
@@ -1281,6 +1244,7 @@ while trialNum < trials.nTotal and expStop==False:
     colorRings=list();preDrawStimToGreasePipeline = list()
     isReversed= list([1]) * numRings #always takes values of -1 or 1
     reversalNumEachRing = list([0]) * numRings
+    pairInCollisionCooldown = dict() #tracks which ring pairs recently triggered a collision-reversal, so they don't re-trigger every frame while still close (hysteresis)
     if randomStartAngleEachRing:
         angleIniEachRing = list( np.random.uniform(0,2*pi,size=[numRings]) )
     else: 
@@ -1400,7 +1364,7 @@ while trialNum < trials.nTotal and expStop==False:
         #print('currentSpeed=',currentSpeed) 
 
         (angleIni,currAngle,isReversed,reversalNumEachRing) = \
-            oneFrameOfStim(thisTrial,currentSpeed,n,stimClock,useClock,offsetXYeachRing,initialDirectionEachRing,currAngle,blobsToPreCue,isReversed,reversalNumEachRing,cueFrames,visibleRings) #da big function
+            oneFrameOfStim(thisTrial,currentSpeed,n,stimClock,useClock,offsetXYeachRing,initialDirectionEachRing,currAngle,blobsToPreCue,isReversed,reversalNumEachRing,cueFrames,visibleRings,pairInCollisionCooldown) #da big function
 
         if exportImages:
             myWin.getMovieFrame(buffer='back') #for later saving

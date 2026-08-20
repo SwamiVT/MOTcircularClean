@@ -7,7 +7,7 @@
 ### trialDurMin, trackVariableIntervMax
 ##############
 from psychopy import prefs
-prefs.hardware['audioLib'] = ['pygame']
+prefs.hardware['audioLib'] = ['ptb']
 from psychopy import sound, monitors, logging, visual, data, core
 import psychopy.gui, psychopy.event, psychopy.info
 import numpy as np, pandas as pd 
@@ -794,7 +794,7 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
   for numRing in visibleRings: #range(numRings):
     angleMoveRad = angleChangeThisFrame(speed,initialDirectionEachRing, numRing, n, n-1)
     currAngleRad[numRing] = currAngleRad[numRing]+angleMoveRad*(isReversed[numRing])
-    angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing]
+    angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing] + numRing * (pi/numObjects) # the last term offsets subsequent rings blob location to maximise spatial separation 
     #Handle blob reversal if they get too close across rings
     #collisionThreshold = 1.5 * ballStdDev
     #for otherRing in visibleRings:
@@ -999,7 +999,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
     while respcount < sum(numRespsNeeded): #collecting response  
         for optionSet in visibleRings: #range(optionSets):  #draw this group (ring) of options
           for ncheck in range( numOptionsEachSet[optionSet] ):  #draw each available to click on in this ring
-                angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi
+                angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + optionSet*(pi/numObjects) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi
                 #stretchOutwardRingsFactor = 1
                 x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,optionSet,angle,n,speed)
                 x = x+ offsetXYeachRing[optionSet][0]
@@ -1048,7 +1048,7 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
             allPositions = []
             for optionSet in visibleRings: #range(optionSets):
                 for ncheck in range( numOptionsEachSet[optionSet] ): 
-                    angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi #radians
+                    angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + optionSet*(pi/numObjects) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi #radians
                     x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,optionSet,angle,n,speed)
                     x = x+ offsetXYeachRing[optionSet][0]
                     y = y+ offsetXYeachRing[optionSet][1]
