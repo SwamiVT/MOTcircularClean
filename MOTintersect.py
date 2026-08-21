@@ -129,13 +129,20 @@ badTimingCushion = 0.3 #Creating more of reversals than should need. Because if 
 def maxPossibleReversals():  #need answer to know how many blank fields to print to file
     return int( ceil(      (maxTrialDur() - trackingExtraTime)  / timeTillReversalMin          ) )
 def getReversalTimes():
-    reversalTimesEachRing = [  [] for i in range(numRings)  ]
-    for r in range(numRings): # set random reversal times
-        thisReversalDur = trackingExtraTime
-        while thisReversalDur< trialDurTotal+badTimingCushion:  
-            thisReversalDur +=  np.random.uniform(timeTillReversalMin,timeTillReversalMax) #10000; print('WARNING thisReversalDur off') 
-            reversalTimesEachRing[r].append(thisReversalDur)
+    reversalTimesOneRing = []
+    thisReversalDur = trackingExtraTime
+    while thisReversalDur < trialDurTotal + badTimingCushion:
+        thisReversalDur += np.random.uniform(timeTillReversalMin, timeTillReversalMax)
+        reversalTimesOneRing.append(thisReversalDur)
+    reversalTimesEachRing = [ list(reversalTimesOneRing) for i in range(numRings) ] # same reversal schedule for each ring, locked reversals 
     return reversalTimesEachRing
+    #reversalTimesEachRing = [  [] for i in range(numRings)  ]
+    #for r in range(numRings): # set random reversal times
+    #    thisReversalDur = trackingExtraTime
+    #    while thisReversalDur< trialDurTotal+badTimingCushion:  
+    #        thisReversalDur +=  np.random.uniform(timeTillReversalMin,timeTillReversalMax) #10000; print('WARNING thisReversalDur off') 
+    #        reversalTimesEachRing[r].append(thisReversalDur)
+    #return reversalTimesEachRing
     
 cueDur = cueRampUpDur+cueRampDownDur+trackingExtraTime  #giving the person time to attend to the cue (secs)
 rampUpFrames = refreshRate*cueRampUpDur;   rampDownFrames = refreshRate*cueRampDownDur;
@@ -795,35 +802,6 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
     angleMoveRad = angleChangeThisFrame(speed,initialDirectionEachRing, numRing, n, n-1)
     currAngleRad[numRing] = currAngleRad[numRing]+angleMoveRad*(isReversed[numRing])
     angleObject0Rad = angleIniEachRingRad[numRing] + currAngleRad[numRing] + numRing * (pi/numObjects) # the last term offsets subsequent rings blob location to maximise spatial separation 
-    #Handle blob reversal if they get too close across rings
-    #collisionThreshold = 1.5 * ballStdDev
-    #for otherRing in visibleRings:
-    #    if otherRing == numRing:
-    #        continue
-    #    
-    #    for thisObject in range(numObjects):
-    #        angleThisObjectRad = angleObject0Rad + (2*pi)/numObjects * thisObject
-    #        xThis, yThis = xyThisFrameThisAngle(thisTrial['basicShape'],radii,numRing,angleThisObjectRad,n,speed)
-    #        xThis += offsetXYeachRing[numRing][0]
-    #        yThis += offsetXYeachRing[numRing][1]
-    #        
-    #        otherAngle0 = angleIniEachRingRad[otherRing] + currAngleRad[otherRing]
-    #        for otherObject in range(numObjects):
-    #            otherAngleThisObjectRad = otherAngle0 + (2*pi)/numObjects * otherObject
-    #            xOther, yOther = xyThisFrameThisAngle(thisTrial['basicShape'],radii,otherRing,otherAngleThisObjectRad,n,speed)
-    #            xOther += offsetXYeachRing[otherRing][0]
-    #            yOther += offsetXYeachRing[otherRing][1]
-    #            
-    #            if np.hypot(xThis - xOther, yThis - yOther) < collisionThreshold:
-    #                isReversed[numRing] *= -1
-    #                isReversed[otherRing] *= -1
-    #                reversalNumEachRing[numRing] += 1
-    #                reversalNumEachRing[otherRing] += 1
-    #                break
-    #        else:
-    #            continue
-    #        break
-    
     #Handle reversal if time for reversal
     if reversalNumEachRing[numRing] <= len(reversalTimesEachRing[numRing]): #haven't exceeded reversals assigned
         reversalNum = int(reversalNumEachRing[numRing])
@@ -1227,10 +1205,14 @@ while trialNum < trials.nTotal and expStop==False:
     colorRings=list();preDrawStimToGreasePipeline = list()
     isReversed= list([1]) * numRings #always takes values of -1 or 1
     reversalNumEachRing = list([0]) * numRings
-    if randomStartAngleEachRing:
-        angleIniEachRing = list( np.random.uniform(0,2*pi,size=[numRings]) )
-    else: 
-        angleIniEachRing = [0]*numRings
+    if numRings >= 3:
+        angleSideRings = np.random.uniform(0,2*pi) if randomStartAngleEachRing else 0.0
+        angleIniEachRing = [ angleSideRings, angleSideRings, angleSideRings + pi/thisTrial['numObjectsInRing'] ]
+    else:
+        if randomStartAngleEachRing:
+            angleIniEachRing = list( np.random.uniform(0,2*pi,size=[numRings]) )
+        else: 
+            angleIniEachRing = [0]*numRings
     currAngle = list([0]) * numRings
     if randomInitialDirExceptRing0:
         initialDirectionEachRing = list( rng.integers(0,1,size=[numRings]) *2 -1 ) #randomise initial direction of each ring
