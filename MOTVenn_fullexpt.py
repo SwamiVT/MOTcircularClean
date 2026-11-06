@@ -129,12 +129,12 @@ badTimingCushion = 0.3 #Creating more of reversals than should need. Because if 
 def maxPossibleReversals():  #need answer to know how many blank fields to print to file
     return int( ceil(      (maxTrialDur() - trackingExtraTime)  / timeTillReversalMin          ) )
 def getReversalTimes():
-    reversalTimesEachRing = [  [] for i in range(numRings)  ]
-    for r in range(numRings): # set random reversal times
-        thisReversalDur = trackingExtraTime
-        while thisReversalDur< trialDurTotal+badTimingCushion:  
-            thisReversalDur +=  np.random.uniform(timeTillReversalMin,timeTillReversalMax) #10000; print('WARNING thisReversalDur off') 
-            reversalTimesEachRing[r].append(thisReversalDur)
+    reversalTimesOneRing = []
+    thisReversalDur = trackingExtraTime
+    while thisReversalDur< trialDurTotal+badTimingCushion:  
+        thisReversalDur +=  np.random.uniform(timeTillReversalMin,timeTillReversalMax) #10000; print('WARNING thisReversalDur off') 
+        reversalTimesOneRing.append(thisReversalDur)
+    reversalTimesEachRing = [ list(reversalTimesOneRing) for i in range(numRings) ] #make a copy for each ring, so that each ring has the same reversal times
     return reversalTimesEachRing
     
 cueDur = cueRampUpDur+cueRampDownDur+trackingExtraTime  #giving the person time to attend to the cue (secs)
@@ -1111,7 +1111,7 @@ if eyetracking:
     my_tracker = EyelinkHolcombeLabHelpers.EyeLinkTrack_Holcombe(myWin,trialClock,
                                                                  nameForRemoteEDF4charsMax,1, 'HV5',(255,255,255),(0,0,0),False,(widthPix,heightPix))
 
-randomStartAngleEachRing = True
+randomStartAngleEachRing = False
 randomInitialDirExceptRing0 = True
 oppositeInitialDirFirstTwoRings = True
       
@@ -1153,6 +1153,9 @@ while trialNum < trials.nTotal and expStop==False:
     else: 
         angleIniEachRing = [0]*numRings
     currAngle = list([0]) * numRings
+    if randomInitialDirExceptRing0:
+        offsetDegrees = {2: pi / 2, 4: pi / 4}.get(thisTrial['numObjectsInRing'], 0)  # Default to 0 if numObjectsInRing is not 2 or 4
+        angleIniEachRing[1] = (angleIniEachRing[1] + offset) % (2 * np.pi)
     if randomInitialDirExceptRing0:
         initialDirectionEachRing = list( rng.integers(0,1,size=[numRings]) *2 -1 ) #randomise initial direction of each ring
         initialDirectionEachRing[0] = thisTrial['initialDirRing0']
