@@ -861,7 +861,7 @@ def oneFrameOfStim(thisTrial,speed,currFrame,clock,useClock,offsetXYeachRing,ini
 # #######End of function that displays the stimuli #####################################
 ########################################################################################
 
-showClickableRegions = False #Every time you click, show every disc's clickable region 
+showClickableRegions = True #Every time you click, show every disc's clickable region 
 showClickedRegion = True #Problem with code is it shows the largest ring's region always, even if the smaller ring is clicked
 showClickedRegionFinal = True #Show the last click, that's actually on the cued ring
 mouseClickAreaFractionOfSpaceAvailable = 0.9 #0.9 means 90% of the space available to the object is clickable
@@ -904,7 +904,7 @@ def calcMouseChoiceRadiusForRing(ring):
     #print('Closest distance to another object, for each ring: ',mouseChoiceRadiusEachRing)
     return mouseClickAreaFractionOfSpaceAvailable * mouseChoiceRadiusEachRing[ring]
 
-def calcClickRadiiFromPositions(allPositions):
+def calcClickRadiiFromPositions(allPositions): # this is to make sure that the clickable area is calculated using the blobs instead
     radii_out = {}
     n = len(allPositions)
     for i in range(n):
@@ -916,7 +916,7 @@ def calcClickRadiiFromPositions(allPositions):
             d = sqrt((pi_['x']-pj['x'])**2 + (pi_['y']-pj['y'])**2)
             if nearestDist is None or d < nearestDist:
                 nearestDist = d
-        if nearestDist is not None:
+        if nearestDist is None:
             nearestDist = 2 * max(radii)
         radii_out[(pi_['optionSet'], pi_['ncheck'])] = mouseClickAreaFractionOfSpaceAvailable * (nearestDist / 2)
     return radii_out
@@ -995,50 +995,61 @@ def collectResponses(thisTrial,speed,n,responses,responsesAutopilot, respPromptS
                 mouseFactor = 0.5
             mouseX = mouseX * mouseFactor 
             mouseY = mouseY * mouseFactor 
-            if showClickedRegion:
-                #Determine choiceRadius for the ring the person needs to respond to
-                mouseChoiceRadius = calcMouseChoiceRadiusForRing( thisTrial['ringToQuery'] )
-                clickedRegion.setPos([mouseX,mouseY])
-                clickedRegion.setRadius(mouseChoiceRadius)
-                clickedRegion.draw()
+            
+            allPositions = []
             for optionSet in range(optionSets):
-                mouseChoiceRadius = calcMouseChoiceRadiusForRing(optionSet) 
-                #print('mouseChoiceRadius=',round(mouseChoiceRadius,1), 'for optionSet=',optionSet)
                 for ncheck in range( numOptionsEachSet[optionSet] ): 
                     angle =  (angleIniEachRing[optionSet]+currAngle[optionSet]) + ncheck*1.0/numOptionsEachSet[optionSet] *2.*pi #radians
                     x,y = xyThisFrameThisAngle(thisTrial['basicShape'],radii,optionSet,angle,n,speed)
                     x = x+ offsetXYeachRing[optionSet][0]
                     y = y+ offsetXYeachRing[optionSet][1]
-                    #check whether mouse click was close to any of the colors
-                    if showClickableRegions: #every disc's region revealed every time you click
-                        clickableRegion.setPos([x,y]) 
-                        clickableRegion.setRadius(mouseChoiceRadius) 
-                        clickableRegion.draw()
-                    #print('mouseXY=',round(mouseX,2),',',round(mouseY,2),'xy=',round(x,2),',',round(y,2), ' distance=',distance, ' mouseChoiceRadius=',mouseChoiceRadius)
-                    #Colors were drawn in order they're in in optionsIdxs
-                    distance = sqrt(pow((x-mouseX),2)+pow((y-mouseY),2))
-                    if distance < mouseChoiceRadius:
-                        c = opts[optionSet][ncheck] #idx of color that this option num corresponds to
-                        if respondedEachToken[optionSet][ncheck]:  #clicked one that already clicked on
-                            if lastClickState ==0: #only count this event if is a distinct click from the one that selected the blob!
-                                respondedEachToken[optionSet][ncheck] =0
-                                responses[optionSet].remove(c) #this redundant list also of course encodes the order
-                                respcount -= 1
-                                #print('removed number ',ncheck, ' from clicked list')
-                        else: #clicked on new one, need to add to response    
-                            numRespsAlready = len(  np.where(respondedEachToken[optionSet])[0]  )
-                            #print('numRespsAlready=',numRespsAlready,' numRespsNeeded= ',numRespsNeeded,'  responses=',responses)   
-                            if numRespsAlready >= numRespsNeeded[optionSet]:
-                                pass #not allowed to select this one until de-select other
-                            else:
-                                respondedEachToken[optionSet][ncheck] = 1 #register this one has been clicked
-                                responses[optionSet].append(c) #this redundant list also of course encodes the order
-                                respcount += 1  
-                                print('added  ',ncheck,'th response to clicked list')
-                            if showClickedRegionFinal: #Selected something from the correct ring, now show its region
-                                clickableRegion.setPos([x,y]) 
-                                clickableRegion.setRadius(mouseChoiceRadius) 
-                                clickableRegion.draw()                                
+                    allPositions.append({'x':x,'y':y,'optionSet':optionSet,'ncheck':ncheck})
+            clickRadii = calcClickRadiiFromPositions(allPositions)
+            
+            if showClickedRegion:
+                #Determine choiceRadius for the ring the person needs to respond to
+                radiiQueriedRing = [
+                    radius for (ring, _), radius in clickRadii.items()
+                    if ring == thisTrial['ringToQuery']
+                ]
+                mouseChoiceRadius = np.mean(radiiQueriedRing) if radiiQueriedRing else 1.0
+                clickedRegion.setPos([mouseX,mouseY])
+                clickedRegion.setRadius(mouseChoiceRadius)
+                clickedRegion.draw()
+                
+            for pos in allPositions:
+                optionSet, ncheck, x, y = pos['optionSet'], pos['ncheck'], pos['x'], pos['y']
+                mouseChoiceRadius = clickRadii[(optionSet, ncheck)]
+                #check whether mouse click was close to any of the colors
+                if showClickableRegions: #every disc's region revealed every time you click
+                    clickableRegion.setPos([x,y]) 
+                    clickableRegion.setRadius(mouseChoiceRadius) 
+                    clickableRegion.draw()
+                #print('mouseXY=',round(mouseX,2),',',round(mouseY,2),'xy=',round(x,2),',',round(y,2), ' distance=',distance, ' mouseChoiceRadius=',mouseChoiceRadius)
+                #Colors were drawn in order they're in in optionsIdxs
+                distance = sqrt(pow((x-mouseX),2)+pow((y-mouseY),2))
+                if distance < mouseChoiceRadius:
+                    c = opts[optionSet][ncheck] #idx of color that this option num corresponds to
+                    if respondedEachToken[optionSet][ncheck]:  #clicked one that already clicked on
+                        if lastClickState ==0: #only count this event if is a distinct click from the one that selected the blob!
+                            respondedEachToken[optionSet][ncheck] =0
+                            responses[optionSet].remove(c) #this redundant list also of course encodes the order
+                            respcount -= 1
+                            #print('removed number ',ncheck, ' from clicked list')
+                    else: #clicked on new one, need to add to response    
+                        numRespsAlready = len(  np.where(respondedEachToken[optionSet])[0]  )
+                        #print('numRespsAlready=',numRespsAlready,' numRespsNeeded= ',numRespsNeeded,'  responses=',responses)   
+                        if numRespsAlready >= numRespsNeeded[optionSet]:
+                            pass #not allowed to select this one until de-select other
+                        else:
+                            respondedEachToken[optionSet][ncheck] = 1 #register this one has been clicked
+                            responses[optionSet].append(c) #this redundant list also of course encodes the order
+                            respcount += 1  
+                            print('added  ',ncheck,'th response to clicked list')
+                        if showClickedRegionFinal: #Selected something from the correct ring, now show its region
+                            clickableRegion.setPos([x,y]) 
+                            clickableRegion.setRadius(mouseChoiceRadius) 
+                            clickableRegion.draw()                                
                 #print 'response=', response, '  respcount=',respcount, ' lastClickState=',lastClickState, '  after affected by click'
            #end if mouse clicked
            
